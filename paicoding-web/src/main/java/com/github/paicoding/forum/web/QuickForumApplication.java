@@ -41,7 +41,7 @@ import java.util.List;
 @ServletComponentScan
 @SpringBootApplication
 public class QuickForumApplication implements WebMvcConfigurer, ApplicationRunner {
-    @Value("${server.port:8080}")
+    @Value("${server.port:8088}")
     private Integer webPort;
 
     @Resource

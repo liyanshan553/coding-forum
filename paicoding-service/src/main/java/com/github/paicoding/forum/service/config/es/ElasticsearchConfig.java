@@ -78,10 +78,6 @@ public class ElasticsearchConfig {
         // 构建连接对象
         RestClientBuilder builder = RestClient.builder(httpHost);
 
-        // 设置用户名、密码
-        CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-        credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(userName, password));
-
         // 连接延时配置
         builder.setRequestConfigCallback(requestConfigBuilder -> {
             requestConfigBuilder.setConnectTimeout(connectTimeOut);
@@ -89,11 +85,19 @@ public class ElasticsearchConfig {
             requestConfigBuilder.setConnectionRequestTimeout(connectionRequestTimeOut);
             return requestConfigBuilder;
         });
+        
         // 连接数配置
         builder.setHttpClientConfigCallback(httpClientBuilder -> {
             httpClientBuilder.setMaxConnTotal(maxConnectNum);
             httpClientBuilder.setMaxConnPerRoute(maxConnectNumPerRoute);
-            httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+            
+            // 设置用户名、密码（仅在配置了用户名和密码时）
+            if (userName != null && !userName.isEmpty() && password != null && !password.isEmpty()) {
+                CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+                credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(userName, password));
+                httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+            }
+            
             return httpClientBuilder;
         });
 
