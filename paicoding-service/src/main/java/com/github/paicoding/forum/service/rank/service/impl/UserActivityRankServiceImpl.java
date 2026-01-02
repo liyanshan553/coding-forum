@@ -5,7 +5,6 @@ import com.github.paicoding.forum.api.model.vo.rank.dto.RankItemDTO;
 import com.github.paicoding.forum.api.model.vo.user.dto.SimpleUserInfoDTO;
 import com.github.paicoding.forum.core.cache.RedisClient;
 import com.github.paicoding.forum.core.util.DateUtil;
-import com.github.paicoding.forum.core.util.NumUtil;
 import com.github.paicoding.forum.service.rank.service.UserActivityRankService;
 import com.github.paicoding.forum.service.rank.service.model.ActivityScoreBo;
 import com.github.paicoding.forum.service.user.service.UserService;
@@ -17,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +31,35 @@ import java.util.stream.IntStream;
 @Service
 public class UserActivityRankServiceImpl implements UserActivityRankService {
     private static final String ACTIVITY_SCORE_KEY = "activity_rank_";
+    private static final String ACTIVITY_SCORE_LUA = "local actionKey=KEYS[1];"
+            + "local dayKey=KEYS[2];"
+            + "local monthKey=KEYS[3];"
+            + "local field=ARGV[1];"
+            + "local score=tonumber(ARGV[2]);"
+            + "local userId=ARGV[3];"
+            + "local actionTtl=tonumber(ARGV[4]);"
+            + "local dayTtl=tonumber(ARGV[5]);"
+            + "local monthTtl=tonumber(ARGV[6]);"
+            + "local ans=redis.call('HGET', actionKey, field);"
+            + "if (not ans) then "
+            + "  if (score > 0) then "
+            + "    redis.call('HSET', actionKey, field, score);"
+            + "    redis.call('EXPIRE', actionKey, actionTtl);"
+            + "    redis.call('ZINCRBY', dayKey, score, userId);"
+            + "    redis.call('ZINCRBY', monthKey, score, userId);"
+            + "    if (redis.call('TTL', dayKey) < 0) then redis.call('EXPIRE', dayKey, dayTtl); end;"
+            + "    if (redis.call('TTL', monthKey) < 0) then redis.call('EXPIRE', monthKey, monthTtl); end;"
+            + "    return 1;"
+            + "  end;"
+            + "  return 0;"
+            + "end;"
+            + "if (tonumber(ans) > 0 and score < 0) then "
+            + "  redis.call('HDEL', actionKey, field);"
+            + "  redis.call('ZINCRBY', dayKey, score, userId);"
+            + "  redis.call('ZINCRBY', monthKey, score, userId);"
+            + "  return 1;"
+            + "end;"
+            + "return 0;";
 
     @Autowired
     private UserService userService;
@@ -98,55 +127,15 @@ public class UserActivityRankServiceImpl implements UserActivityRankService {
 
         final String todayRankKey = todayRankKey();
         final String monthRankKey = monthRankKey();
-        // 2. 幂等：判断之前是否有更新过相关的活跃度信息
         final String userActionKey = ACTIVITY_SCORE_KEY + userId + DateUtil.format(DateTimeFormatter.ofPattern("yyyyMMdd"), System.currentTimeMillis());
-        Integer ans = RedisClient.hGet(userActionKey, field, Integer.class);
-        if (ans == null) {
-            // 2.1 之前没有加分记录，执行具体的加分
-            if (score > 0) {
-                // 记录加分记录
-                RedisClient.hSet(userActionKey, field, score);
-                // 个人用户的操作记录，保存一个月的有效期，方便用户查询自己最近31天的活跃情况
-                RedisClient.expire(userActionKey, 31 * DateUtil.ONE_DAY_SECONDS);
-
-                // 更新当天和当月的活跃度排行榜
-                Double newAns = RedisClient.zIncrBy(todayRankKey, String.valueOf(userId), score);
-                RedisClient.zIncrBy(monthRankKey, String.valueOf(userId), score);
-                if (log.isDebugEnabled()) {
-                    log.info("活跃度更新加分! key#field = {}#{}, add = {}, newScore = {}", todayRankKey, userId, score, newAns);
-                }
-                if (newAns <= score) {
-                    // 由于上面只实现了日/月活跃度的增加，但是没有设置对应的有效期；为了避免持久保存导致redis占用较高；因此这里设定了缓存的有效期
-                    // 日活跃榜单，保存31天；月活跃榜单，保存1年
-                    // 为什么是 newAns <= score 才设置有效期呢？
-                    // 因为 newAns 是用户当天的活跃度，如果发现和需要增加的活跃度 scopre 相等，则表明是今天的首次添加记录，此时设置有效期就比较符合预期了
-                    // 但是请注意，下面的实现有两个缺陷：
-                    //  1. 对于月的有效期，就变成了本月，每天的首次增加活跃度时，都会重新刷一下它的有效期，这样就和预期中的首次添加缓存时，设置有效期不符
-                    //  2. 若先增加活跃度1，再减少活跃度1，然后再加活跃度1，同样会导致重新算了有效期
-                    // 严谨一些的写法，应该是 先判断 key 的 ttl， 对于没有设置的才进行设置有效期，如下
-                    Long ttl = RedisClient.ttl(todayRankKey);
-                    if (!NumUtil.upZero(ttl)) {
-                        RedisClient.expire(todayRankKey, 31 * DateUtil.ONE_DAY_SECONDS);
-                    }
-                    ttl = RedisClient.ttl(monthRankKey);
-                    if (!NumUtil.upZero(ttl)) {
-                        RedisClient.expire(monthRankKey, 12 * DateUtil.ONE_MONTH_SECONDS);
-                    }
-                }
-            }
-        } else if (ans > 0) {
-            // 2.2 之前已经加过分，因此这次减分可以执行
-            if (score < 0) {
-                // 移除用户的活跃执行记录 --> 即移除用来做防重复添加活跃度的幂等键
-                Boolean oldHave = RedisClient.hDel(userActionKey, field);
-                if (BooleanUtils.isTrue(oldHave)) {
-                    Double newAns = RedisClient.zIncrBy(todayRankKey, String.valueOf(userId), score);
-                    RedisClient.zIncrBy(monthRankKey, String.valueOf(userId), score);
-                    if (log.isDebugEnabled()) {
-                        log.info("活跃度更新减分! key#field = {}#{}, add = {}, newScore = {}", todayRankKey, userId, score, newAns);
-                    }
-                }
-            }
+        Long updated = RedisClient.evalLong(ACTIVITY_SCORE_LUA,
+                Arrays.asList(userActionKey, todayRankKey, monthRankKey),
+                Arrays.asList(field, String.valueOf(score), String.valueOf(userId),
+                        String.valueOf(31 * DateUtil.ONE_DAY_SECONDS),
+                        String.valueOf(31 * DateUtil.ONE_DAY_SECONDS),
+                        String.valueOf(12 * DateUtil.ONE_MONTH_SECONDS)));
+        if (updated != null && updated == 1L && log.isDebugEnabled()) {
+            log.info("活跃度更新完成! key#field = {}#{}, add = {}", todayRankKey, userId, score);
         }
     }
 

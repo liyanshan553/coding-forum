@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.ReturnType;
 import org.springframework.data.redis.connection.RedisZSetCommands;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -439,6 +440,20 @@ public class RedisClient {
 
     public static PipelineAction pipelineAction() {
         return new PipelineAction();
+    }
+
+    public static Long evalLong(String script, List<String> keys, List<String> args) {
+        return template.execute((RedisCallback<Long>) connection -> {
+            byte[][] keyBytes = keyBytes(keys);
+            byte[][] argBytes = new byte[args.size()][];
+            for (int i = 0; i < args.size(); i++) {
+                argBytes[i] = valBytes(args.get(i));
+            }
+            byte[][] params = new byte[keyBytes.length + argBytes.length][];
+            System.arraycopy(keyBytes, 0, params, 0, keyBytes.length);
+            System.arraycopy(argBytes, 0, params, keyBytes.length, argBytes.length);
+            return (Long) connection.eval(valBytes(script), ReturnType.INTEGER, keyBytes.length, params);
+        });
     }
 
     /**
