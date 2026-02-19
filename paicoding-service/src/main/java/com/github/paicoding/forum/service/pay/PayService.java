@@ -7,7 +7,7 @@ import com.github.paicoding.forum.service.pay.model.PayCallbackBo;
 import com.wechat.pay.java.service.refund.model.RefundNotification;
 import org.springframework.http.ResponseEntity;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.function.Function;
 
 /**

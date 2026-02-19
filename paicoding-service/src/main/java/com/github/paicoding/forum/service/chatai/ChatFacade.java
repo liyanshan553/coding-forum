@@ -1,34 +1,27 @@
 package com.github.paicoding.forum.service.chatai;
 
-import com.github.paicoding.forum.api.model.context.ReqInfoContext;
 import com.github.paicoding.forum.api.model.enums.ai.AISourceEnum;
-import com.github.paicoding.forum.api.model.vo.chat.ChatRecordsVo;
-import com.github.paicoding.forum.core.util.SpringUtil;
-import com.github.paicoding.forum.service.chatai.service.ChatServiceFactory;
-import com.github.paicoding.forum.service.chatai.service.impl.ali.AliIntegration;
-import com.github.paicoding.forum.service.chatai.service.impl.chatgpt.ChatGptIntegration;
-import com.github.paicoding.forum.service.chatai.service.impl.xunfei.XunFeiIntegration;
-import com.github.paicoding.forum.service.chatai.service.impl.zhipu.ZhipuIntegration;
+import com.github.paicoding.forum.core.senstive.SensitiveService;
 import com.github.paicoding.forum.service.user.service.conf.AiConfig;
-import com.google.common.base.Supplier;
-import com.google.common.base.Suppliers;
-import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import reactor.core.publisher.Flux;
 
-import java.util.Collections;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
+import java.util.List;
+import java.util.Map;
 
 /**
- * 聊天的门面类
- *
- * @author YiHui
- * @date 2023/6/9
+ * AI 聊天门面类（Spring AI 重构版）
+ * <p>
+ * 替代原来的 ChatServiceFactory + AbsChatService 模板方法 + 5 套 *ChatServiceImpl，
+ * 统一使用 Spring AI 的 ChatClient 流式接口。
+ * </p>
  */
 @Slf4j
 @Service
@@ -36,150 +29,91 @@ public class ChatFacade {
 
     @Autowired
     private AiConfig aiConfig;
+
     @Autowired
-    private ChatServiceFactory chatServiceFactory;
+    private Map<AISourceEnum, ChatModel> chatModelRegistry;
+
+    @Autowired
+    private ChatMemory chatMemory;
+
+    @Autowired
+    private SensitiveService sensitiveService;
 
     /**
-     * 基于Guava的单实例缓存
-     */
-    private Supplier<AISourceEnum> aiSourceCache;
-
-    /**
-     * 返回推荐的AI模型
-     *
-     * @return
+     * 获取推荐的AI模型（简化版，替代原来的 if-else 链 + Guava 缓存）
      */
     public AISourceEnum getRecommendAiSource() {
-        if (aiSourceCache == null) {
-            refreshAiSourceCache(Collections.emptySet());
-        }
-        AISourceEnum sourceEnum = aiSourceCache.get();
-        if (sourceEnum == null) {
-            refreshAiSourceCache(getRecommendAiSource(Collections.emptySet()));
-        }
-        return aiSourceCache.get();
-    }
-
-    public void refreshAiSourceCache(AISourceEnum ai) {
-        aiSourceCache = Suppliers.memoizeWithExpiration(() -> ai, 10, TimeUnit.MINUTES);
-    }
-
-    public void refreshAiSourceCache(Set<AISourceEnum> except) {
-        refreshAiSourceCache(getRecommendAiSource(except));
-    }
-
-    /**
-     * 返回推荐的AI模型
-     *
-     * @param except 不选择的AI模型
-     * @return
-     */
-    private AISourceEnum getRecommendAiSource(Set<AISourceEnum> except) {
-        AISourceEnum source;
-        try {
-            ChatGptIntegration.ChatGptConfig config = SpringUtil.getBean(ChatGptIntegration.ChatGptConfig.class);
-            if (!except.contains(AISourceEnum.CHAT_GPT_3_5) && !CollectionUtils.isEmpty(config.getConf()
-                    .get(config.getMain()).getKeys())) {
-                source = AISourceEnum.CHAT_GPT_3_5;
-            } else if (!except.contains(AISourceEnum.ZHI_PU_AI)  && StringUtils.isNotBlank(SpringUtil.getBean(ZhipuIntegration.ZhipuConfig.class)
-                    .getApiSecretKey())) {
-                source = AISourceEnum.ZHI_PU_AI;
-            } else if (!except.contains(AISourceEnum.XUN_FEI_AI) && StringUtils.isNotBlank(SpringUtil.getBean(XunFeiIntegration.XunFeiConfig.class)
-                    .getApiKey())) {
-                source = AISourceEnum.XUN_FEI_AI;
-            } else if (!except.contains(AISourceEnum.ALI_AI)) {
-                source = AISourceEnum.ALI_AI;
-            } else if(!except.contains(AISourceEnum.DEEP_SEEK)) {
-                source = AISourceEnum.DEEP_SEEK;
-            } else if(!except.contains(AISourceEnum.DOU_BAO_AI)) {
-                source = AISourceEnum.DOU_BAO_AI;
-            } else {
-                source = AISourceEnum.PAI_AI;
+        List<AISourceEnum> sources = aiConfig.getSource();
+        if (sources != null) {
+            for (AISourceEnum source : sources) {
+                if (chatModelRegistry.containsKey(source)) {
+                    return source;
+                }
             }
-        } catch (Exception e) {
-            source = AISourceEnum.PAI_AI;
+        }
+        return AISourceEnum.DEEP_SEEK;
+    }
+
+    /**
+     * 同步问答
+     *
+     * @param source         AI模型来源
+     * @param question       用户问题
+     * @param conversationId 会话ID（对应原来的 chatId，如 comment:{topCommentId}_{userId}）
+     * @return AI回复内容
+     */
+    public String chat(AISourceEnum source, String question, String conversationId) {
+        List<String> hits = sensitiveService.contains(question);
+        if (!CollectionUtils.isEmpty(hits)) {
+            return String.format("提问中包含敏感词: %s", hits);
         }
 
-        if (source != AISourceEnum.PAI_AI && !aiConfig.getSource().contains(source)) {
-            Set<AISourceEnum> totalExcepts = Sets.newHashSet(except);
-            totalExcepts.add(source);
-            return getRecommendAiSource(totalExcepts);
+        ChatModel model = resolveModel(source);
+        return ChatClient.builder(model)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build()
+                .prompt()
+                .user(question)
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .call()
+                .content();
+    }
+
+    /**
+     * 流式问答（替代原来的 BiConsumer 三层回调链）
+     * <p>
+     * 返回 Flux<String>，每个元素是一个流式 chunk，
+     * 调用方通过 subscribe() 处理，天然异步，无需手动管理线程池。
+     * </p>
+     *
+     * @param source         AI模型来源
+     * @param question       用户问题
+     * @param conversationId 会话ID
+     * @return 流式响应
+     */
+    public Flux<String> streamChat(AISourceEnum source, String question, String conversationId) {
+        List<String> hits = sensitiveService.contains(question);
+        if (!CollectionUtils.isEmpty(hits)) {
+            return Flux.just(String.format("提问中包含敏感词: %s", hits));
         }
-        log.info("当前选中的AI模型：{}", source);
-        return source;
+
+        ChatModel model = resolveModel(source);
+        return ChatClient.builder(model)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build()
+                .prompt()
+                .user(question)
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .stream()
+                .content();
     }
 
-    /**
-     * 高度封装的AI聊天访问入口，对于使用这而言，只需要提问，定义接收返回结果的回调即可
-     *
-     * @param question 提出的问题
-     * @param callback 定义异步聊天接口返回时的回调策略
-     * @return 表示同步直接返回的结果
-     */
-    public ChatRecordsVo autoChat(String question, Consumer<ChatRecordsVo> callback) {
-        AISourceEnum source = getRecommendAiSource();
-        return autoChat(source, question, callback);
-    }
-
-
-    /**
-     * 自动根据AI的支持方式，选择同步/异步的交互方式
-     *
-     * @param source
-     * @param question
-     * @param callback
-     * @return
-     */
-    public ChatRecordsVo autoChat(AISourceEnum source, String question, Consumer<ChatRecordsVo> callback) {
-        if (source.asyncSupport() && chatServiceFactory.getChatService(source).asyncFirst()) {
-            // 支持异步且异步优先的场景下，自动选择异步方式进行聊天
-            return asyncChat(source, question, callback);
+    private ChatModel resolveModel(AISourceEnum source) {
+        ChatModel model = chatModelRegistry.get(source);
+        if (model == null) {
+            log.warn("未找到AI模型 {}，使用默认 DeepSeek", source);
+            model = chatModelRegistry.get(AISourceEnum.DEEP_SEEK);
         }
-        return chat(source, question, callback);
-    }
-
-    /**
-     * 开始聊天
-     *
-     * @param question
-     * @param source
-     * @return
-     */
-    public ChatRecordsVo chat(AISourceEnum source, String question) {
-        return chatServiceFactory.getChatService(source).chat(ReqInfoContext.getReqInfo().getUserId(), question);
-    }
-
-    /**
-     * 开始聊天
-     *
-     * @param question
-     * @param source
-     * @return
-     */
-    public ChatRecordsVo chat(AISourceEnum source, String question, Consumer<ChatRecordsVo> callback) {
-        return chatServiceFactory.getChatService(source)
-                .chat(ReqInfoContext.getReqInfo().getUserId(), question, callback);
-    }
-
-    /**
-     * 异步聊天的方式
-     *
-     * @param source
-     * @param question
-     */
-    public ChatRecordsVo asyncChat(AISourceEnum source, String question, Consumer<ChatRecordsVo> callback) {
-        return chatServiceFactory.getChatService(source)
-                .asyncChat(ReqInfoContext.getReqInfo().getUserId(), question, callback);
-    }
-
-    /**
-     * 返回历史聊天记录
-     *
-     * @param source
-     * @return
-     */
-    public ChatRecordsVo history(AISourceEnum source) {
-        source = source == null ? getRecommendAiSource() : source;
-        return chatServiceFactory.getChatService(source).getChatHistory(ReqInfoContext.getReqInfo().getUserId(), source);
+        return model;
     }
 }

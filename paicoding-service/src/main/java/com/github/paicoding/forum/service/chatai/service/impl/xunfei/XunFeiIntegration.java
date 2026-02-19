@@ -3,7 +3,6 @@ package com.github.paicoding.forum.service.chatai.service.impl.xunfei;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.github.paicoding.forum.api.model.vo.chat.ChatItemVo;
 import com.github.paicoding.forum.core.util.JsonUtil;
-import com.github.paicoding.forum.service.chatai.constants.ChatConstants;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lombok.Data;
@@ -17,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URL;
@@ -184,11 +183,12 @@ public class XunFeiIntegration {
     private static JsonArray toText(ChatItemVo item) {
         JsonArray ary = new JsonArray();
 
-        if (item.getQuestion().startsWith(ChatConstants.PROMPT_TAG)) {
+        String PROMPT_TAG = "prompt-";
+        if (item.getQuestion().startsWith(PROMPT_TAG)) {
             // 提示词
             JsonObject obj = new JsonObject();
             obj.addProperty("role", "user");
-            obj.addProperty("content", item.getQuestion().substring(ChatConstants.PROMPT_TAG.length()));
+            obj.addProperty("content", item.getQuestion().substring(PROMPT_TAG.length()));
             ary.add(obj);
             return ary;
         }

@@ -3,8 +3,8 @@ package com.github.paicoding.forum.service.statistics.service;
 import com.github.paicoding.forum.api.model.vo.statistics.dto.StatisticsCountDTO;
 import com.github.paicoding.forum.api.model.vo.statistics.dto.StatisticsDayDTO;
 
-import javax.servlet.ServletOutputStream;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 
 /**

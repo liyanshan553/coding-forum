@@ -12,7 +12,7 @@ import com.github.paicoding.forum.service.user.repository.mapper.UserInfoMapper;
 import com.github.paicoding.forum.service.user.repository.mapper.UserMapper;
 import org.springframework.stereotype.Repository;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.Collection;
 import java.util.List;
 
