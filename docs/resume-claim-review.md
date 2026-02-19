@@ -30,3 +30,4 @@
 - **触发方式与对话隔离**：评论保存时会检测顶级评论是否 @杠精机器人或回复对象是否为机器人用户，命中后构造 `comment:{topCommentId}_{userId}` 作为聊天会话 ID，既保留顶级楼层语境又按用户拆分上下文，避免多人混聊干扰。【F:paicoding-service/src/main/java/com/github/paicoding/forum/service/comment/service/impl/CommentWriteServiceImpl.java†L93-L127】
 - **异步调用与自动落库**：`HaterBot.trigger` 在独立线程设置机器人身份与会话 ID 后调用 `ChatFacade.autoChat`（DeepSeek 源）获取回复，回调中将答案写回评论表并通过事件发布通知，形成“人机对线”的闭环体验。【F:paicoding-service/src/main/java/com/github/paicoding/forum/service/chatai/bot/HaterBot.java†L30-L73】【F:paicoding-service/src/main/java/com/github/paicoding/forum/service/comment/service/impl/CommentWriteServiceImpl.java†L115-L136】
 - **技术含量评估**：实现覆盖触发检测、会话隔离、异步 AI 调用、落库与事件链路，远不止简单的模板回复，作为“评论场景 AI 机器人/人机对线”亮点是可信的；但若写“多模态”“复杂意图识别”则超出现有实现。建议按现有能力陈述，突出“上下文隔离 + 异步对话回写”。
+- **简历润色推荐**：AI 评论对线机器人：基于触发词（@机器人）与回复对象识别触发 AI 回复，异步调用模型生成内容；通过 `topCommentId + userId` 组装会话标识实现同楼层多用户上下文隔离，并以回调方式自动落库为评论，形成评论区多轮对话闭环。
