@@ -2,7 +2,6 @@ package com.github.paicoding.forum.service.comment.service.impl;
 
 import com.github.paicoding.forum.api.model.enums.NotifyTypeEnum;
 import com.github.paicoding.forum.api.model.enums.YesOrNoEnum;
-import com.github.paicoding.forum.api.model.enums.ai.AiBotEnum;
 import com.github.paicoding.forum.api.model.exception.ExceptionUtil;
 import com.github.paicoding.forum.api.model.vo.comment.CommentSaveReq;
 import com.github.paicoding.forum.api.model.vo.constants.StatusEnum;
@@ -11,14 +10,13 @@ import com.github.paicoding.forum.core.util.NumUtil;
 import com.github.paicoding.forum.core.util.SpringUtil;
 import com.github.paicoding.forum.service.article.repository.entity.ArticleDO;
 import com.github.paicoding.forum.service.article.service.ArticleReadService;
-import com.github.paicoding.forum.service.chatai.bot.HaterBot;
 import com.github.paicoding.forum.service.comment.converter.CommentConverter;
 import com.github.paicoding.forum.service.comment.repository.dao.CommentDao;
 import com.github.paicoding.forum.service.comment.repository.entity.CommentDO;
+import com.github.paicoding.forum.service.comment.service.CommentAiDuelService;
 import com.github.paicoding.forum.service.comment.service.CommentWriteService;
 import com.github.paicoding.forum.service.user.service.UserFootService;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,7 +43,7 @@ public class CommentWriteServiceImpl implements CommentWriteService {
     @Autowired
     private UserFootService userFootWriteService;
     @Autowired
-    private HaterBot haterBot;
+    private CommentAiDuelService commentAiDuelService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -79,8 +77,8 @@ public class CommentWriteServiceImpl implements CommentWriteService {
         }
         userFootWriteService.saveCommentFoot(commentDO, article.getUserId(), parentUser);
 
-        // 3. 触发杠精机器人
-        this.haterBotTrigger(commentDO, parentComment);
+        // 3. 触发 AI 评论机器人
+        commentAiDuelService.triggerIfNeeded(commentDO, parentComment, reply -> aiReply(commentAiDuelService.botUserId(), reply, commentDO));
 
         // 4. 发布添加/回复评论事件
         SpringUtil.publishEvent(new NotifyMsgEvent<>(this, NotifyTypeEnum.COMMENT, commentDO));
@@ -148,42 +146,12 @@ public class CommentWriteServiceImpl implements CommentWriteService {
 
 
     /**
-     * 机器人回复
+     * AI 机器人回帖
      *
-     * @param comment 当前评论内容
-     * @param parent  当前评论的父评论
+     * @param aiUserId      机器人用户id
+     * @param replyContent  回复内容
+     * @param parentComment 被回复的评论
      */
-    private void haterBotTrigger(CommentDO comment, CommentDO parent) {
-        boolean trigger = false;
-        Long haterBotUserId = haterBot.getBotUser().getUserId();
-        Long topCommentId = 0L;
-        if (parent == null) {
-            // 当前的评论就是顶级评论，根据回复内容是否有触发词来决定是否需要进行触发
-            String tag = "@" + AiBotEnum.HATER_BOT.getNickName();
-            if (comment.getContent().contains(tag)) {
-                comment.setContent(StringUtils.replace(comment.getContent(), tag, ""));
-                trigger = true;
-            }
-            topCommentId = comment.getId();
-        } else {
-            // 回复内容，根据回复的用户是否为机器人，来判定是否需要进行触发
-            if (Objects.equals(haterBotUserId, parent.getUserId())) {
-                trigger = true;
-            }
-            topCommentId = comment.getTopCommentId();
-        }
-
-        // 评论中，@了机器人，那么开启评论对线模式
-        if (trigger) {
-            log.info("评论「{}」 开启了在线互怼模式", comment);
-            // sourceBizId: 主要用于构建聊天对话，以顶级评论 + 用户id作为唯一标识
-            // 避免出现一个顶级评论开启对线，后续的回复中有其他用户参与进来时，因为用户id不同，这样传递给大模型的上下文就不会出现交叉
-            haterBot.trigger(comment.getContent(), "comment:" + topCommentId + "_" + comment.getUserId(), reply -> {
-                aiReply(haterBotUserId, reply, comment);
-            });
-        }
-    }
-
     private void aiReply(Long aiUserId, String replyContent, CommentDO parentComment) {
         CommentSaveReq save = new CommentSaveReq();
         save.setArticleId(parentComment.getArticleId());
