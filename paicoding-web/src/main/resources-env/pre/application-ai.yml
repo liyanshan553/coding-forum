@@ -5,46 +5,28 @@ net:
       port: 1080
       type: SOCKS
 
+# ============ Spring AI 模型配置 ============
 
+# DeepSeek（走 OpenAI 兼容协议）
+deepseek:
+  apiHost: https://api.deepseek.com
+  apiKey: # 使用自己的密钥进行替换
 
-# chatgpt
+# ChatGPT（OpenAI 原生）
 chatgpt:
-  main: CHAT_GPT_3_5
   conf:
     CHAT_GPT_3_5:
       keys:
         - # 这里输入你的key
-      proxy: true # 表示走上面的代理进行访问
       apiHost: https://api.openai.com/
-      timeOut: 900
-      maxToken: 3000
-    CHAT_GPT_4:
-      keys:
-        -
-      proxy: true
-      apiHost: https://api.openai.com/
-      timeOut: 900
-      maxToken: 200000
-  number:
-    # 普通用户
-    normal: 50
-    vip: 100
 
+# 智谱 GLM
+zhipu:
+  apiSecretKey: # 使用自己的密钥进行替换
 
-
-# 讯飞AI
+# 讯飞星火（WebSocket 协议，通过 XunFeiChatModelAdapter 桥接到 Spring AI）
 xunfei:
   hostUrl: http://spark-api.xf-yun.com/v1.1/chat
   appId:
   apiKey:
   apiSecret:
-
-deepseek:
-  apiHost: https://api.deepseek.com
-  apiKey: # 使用自己的密钥进行替换
-  timeout: 900 # 超时时间，单位秒
-
-doubao:
-  api-key: # 使用自己的密钥进行替换
-  api-host: https://ark.cn-beijing.volces.com/api/v3
-  end-point: # 使用自己创建的接入点进行替换

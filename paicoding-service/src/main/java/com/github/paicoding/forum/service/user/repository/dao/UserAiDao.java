@@ -17,7 +17,7 @@ import com.github.paicoding.forum.service.user.repository.mapper.UserAiMapper;
 import com.github.paicoding.forum.service.user.repository.params.SearchZsxqWhiteParams;
 import org.springframework.stereotype.Repository;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.List;
 
 /**

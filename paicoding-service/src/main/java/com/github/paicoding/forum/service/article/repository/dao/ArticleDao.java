@@ -30,7 +30,7 @@ import com.github.paicoding.forum.service.article.repository.params.SearchArticl
 import com.google.common.collect.Maps;
 import org.springframework.stereotype.Repository;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

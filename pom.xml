@@ -13,7 +13,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.7.1</version>
+        <version>3.3.0</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.github.paicoding.forum</groupId>
@@ -24,10 +24,11 @@
     <properties>
         <lombok.version>1.18.42</lombok.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <spring-ai.version>1.0.0-M6</spring-ai.version>
         <guava.version>31.1-jre</guava.version>
-        <mybaits-plus.version>3.5.2</mybaits-plus.version>
+        <mybaits-plus.version>3.5.5</mybaits-plus.version>
         <aliyun-sdk-oss.version>3.17.2</aliyun-sdk-oss.version>
         <qrcode-plugin.version>3.0.0</qrcode-plugin.version>
         <commons-io.version>2.16.1</commons-io.version>
@@ -47,6 +48,15 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Spring AI BOM -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
             <dependency>
                 <groupId>com.github.paicoding.forum</groupId>
                 <artifactId>paicoding-api</artifactId>

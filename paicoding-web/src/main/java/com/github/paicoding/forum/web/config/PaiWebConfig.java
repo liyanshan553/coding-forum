@@ -16,8 +16,8 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.spring5.dialect.SpringStandardDialect;
 import org.thymeleaf.standard.serializer.IStandardJavaScriptSerializer;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.Resource;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Objects;

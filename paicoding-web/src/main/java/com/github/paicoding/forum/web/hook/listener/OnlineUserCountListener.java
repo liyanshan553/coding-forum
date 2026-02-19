@@ -3,9 +3,9 @@ package com.github.paicoding.forum.web.hook.listener;
 import com.github.paicoding.forum.core.util.SpringUtil;
 import com.github.paicoding.forum.service.statistics.service.UserStatisticService;
 
-import javax.servlet.annotation.WebListener;
-import javax.servlet.http.HttpSessionEvent;
-import javax.servlet.http.HttpSessionListener;
+import jakarta.servlet.annotation.WebListener;
+import jakarta.servlet.http.HttpSessionEvent;
+import jakarta.servlet.http.HttpSessionListener;
 
 /**
  * 通过监听session来实现实时人数统计

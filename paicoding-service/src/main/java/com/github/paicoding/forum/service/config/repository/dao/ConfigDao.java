@@ -20,7 +20,7 @@ import com.github.paicoding.forum.service.config.repository.params.SearchGlobalC
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.Date;
 import java.util.List;
 

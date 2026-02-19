@@ -230,7 +230,13 @@
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson</artifactId>
-            <version>3.16.4</version>
+            <version>3.27.0</version>
+        </dependency>
+
+        <!-- Webflux for Flux/SSE streaming support -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
 
         <dependency>

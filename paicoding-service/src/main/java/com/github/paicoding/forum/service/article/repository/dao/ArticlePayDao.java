@@ -9,7 +9,7 @@ import com.github.paicoding.forum.service.article.repository.mapper.ArticlePayRe
 import org.springframework.stereotype.Repository;
 import org.springframework.util.CollectionUtils;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.stream.Collectors;
 
