@@ -2,6 +2,7 @@ package com.github.paicoding.forum.service.chatai.bot;
 
 import com.github.paicoding.forum.api.model.enums.ai.AISourceEnum;
 import com.github.paicoding.forum.api.model.enums.ai.AiBotEnum;
+import com.github.paicoding.forum.api.model.vo.chat.ChatItemVo;
 import com.github.paicoding.forum.api.model.vo.user.dto.BaseUserInfoDTO;
 import com.github.paicoding.forum.service.chatai.ChatFacade;
 import com.github.paicoding.forum.service.user.service.RegisterService;
@@ -68,6 +69,15 @@ public class HaterBot {
                         },
                         error -> log.error("AI对线失败, chatId={}", chatId, error)
                 );
+    }
+
+
+
+    /**
+     * 给机器人补齐系统提示词
+     */
+    public ChatItemVo addPrompt(Long userId) {
+        return new ChatItemVo().initQuestion(AiBotEnum.HATER_BOT.getPrompt());
     }
 
     public BaseUserInfoDTO getBotUser() {
