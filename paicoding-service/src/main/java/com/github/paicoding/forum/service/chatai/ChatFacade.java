@@ -27,6 +27,11 @@ import java.util.Map;
 @Service
 public class ChatFacade {
 
+    /**
+     * 管理端手动指定的默认模型
+     */
+    private volatile AISourceEnum manualDefaultSource;
+
     @Autowired
     private AiConfig aiConfig;
 
@@ -43,6 +48,10 @@ public class ChatFacade {
      * 获取推荐的AI模型（简化版，替代原来的 if-else 链 + Guava 缓存）
      */
     public AISourceEnum getRecommendAiSource() {
+        if (manualDefaultSource != null && chatModelRegistry.containsKey(manualDefaultSource)) {
+            return manualDefaultSource;
+        }
+
         List<AISourceEnum> sources = aiConfig.getSource();
         if (sources != null) {
             for (AISourceEnum source : sources) {
@@ -52,6 +61,25 @@ public class ChatFacade {
             }
         }
         return AISourceEnum.DEEP_SEEK;
+    }
+
+    /**
+     * 刷新默认模型选择
+     *
+     * @param source 手动指定的模型，传空时清空并恢复配置推荐
+     */
+    public void refreshAiSourceCache(AISourceEnum source) {
+        if (source == null) {
+            manualDefaultSource = null;
+            return;
+        }
+
+        if (!chatModelRegistry.containsKey(source)) {
+            log.warn("指定模型 {} 未注册，忽略本次切换", source);
+            return;
+        }
+
+        manualDefaultSource = source;
     }
 
     /**
